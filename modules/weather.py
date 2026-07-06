@@ -1,93 +1,145 @@
 import requests
+
 from config import CITIES
 
 
 WEATHER_CODES = {
-    0: "ясно",
-    1: "преимущественно ясно",
-    2: "переменная облачность",
-    3: "облачно",
-    45: "туман",
-    48: "изморозь / туман",
-    51: "легкая морось",
-    53: "морось",
-    55: "сильная морось",
-    61: "небольшой дождь",
-    63: "дождь",
-    65: "сильный дождь",
-    80: "ливень",
-    81: "сильный ливень",
-    82: "очень сильный ливень",
-    95: "гроза",
-    96: "гроза с градом",
-    99: "сильная гроза с градом",
+    0: "☀️ Ясно",
+    1: "🌤 Малооблачно",
+    2: "⛅ Переменная облачность",
+    3: "☁️ Пасмурно",
+
+    45: "🌫 Туман",
+    48: "🌫 Сильный туман",
+
+    51: "🌦 Морось",
+    53: "🌦 Морось",
+    55: "🌦 Сильная морось",
+
+    61: "🌧 Дождь",
+    63: "🌧 Дождь",
+    65: "🌧 Сильный дождь",
+
+    66: "🌧 Ледяной дождь",
+    67: "🌧 Ледяной дождь",
+
+    71: "❄️ Снег",
+    73: "❄️ Снег",
+    75: "❄️ Сильный снег",
+
+    80: "🌦 Ливень",
+    81: "🌧 Ливень",
+    82: "⛈ Сильный ливень",
+
+    95: "⛈ Гроза",
+    96: "⛈ Гроза с градом",
+    99: "⛈ Сильная гроза"
 }
 
 
-def collect_weather():
-    result = {}
+def weather_name(code: int) -> str:
+    return WEATHER_CODES.get(code, "Неизвестно")
 
-    for city, info in CITIES.items():
-        lat = info["lat"]
-        lon = info["lon"]
 
-        url = (
-            "https://api.open-meteo.com/v1/forecast"
-            f"?latitude={lat}&longitude={lon}"
-            "&current=temperature_2m,precipitation,rain,weather_code,wind_speed_10m"
-            "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum"
-            "&forecast_days=1"
-            "&timezone=Asia%2FKuala_Lumpur"
+def load_weather(lat, lon):
+
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}"
+        f"&longitude={lon}"
+        "&current=temperature_2m,relative_humidity_2m,"
+        "wind_speed_10m,weather_code"
+        "&hourly=temperature_2m,weather_code,precipitation_probability"
+        "&forecast_days=1"
+        "&timezone=Asia%2FKuala_Lumpur"
+    )
+
+    try:
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()
+
+        return response.json()
+
+    except Exception:
+
+        return None
+
+
+def city_weather(city, data):
+
+    weather = load_weather(
+        data["lat"],
+        data["lon"]
+    )
+
+    if weather is None:
+        return (
+            f"📍 {city}\n"
+            "Не удалось получить погоду.\n"
         )
 
-        try:
-            response = requests.get(url, timeout=20)
-            response.raise_for_status()
-            data = response.json()
-            current = data.get("current", {})
-            daily = data.get("daily", {})
+    current = weather["current"]
 
-            code = current.get("weather_code")
-            result[city] = {
-                "temperature": current.get("temperature_2m"),
-                "rain": current.get("rain"),
-                "precipitation": current.get("precipitation"),
-                "wind": current.get("wind_speed_10m"),
-                "description": WEATHER_CODES.get(code, f"код погоды {code}"),
-                "max_temp": (daily.get("temperature_2m_max") or [None])[0],
-                "min_temp": (daily.get("temperature_2m_min") or [None])[0],
-                "daily_precipitation": (daily.get("precipitation_sum") or [None])[0],
-            }
+    hourly = weather["hourly"]
 
-        except Exception as exc:
-            result[city] = {"error": str(exc)}
+    temperature = current["temperature_2m"]
 
-    return result
+    humidity = current["relative_humidity_2m"]
+
+    wind = current["wind_speed_10m"]
+
+    code = current["weather_code"]
+
+    text = []
+
+    text.append(f"📍 {city}")
+
+    text.append(f"Сейчас: {weather_name(code)}")
+
+    text.append(f"🌡 Температура: {temperature}°C")
+
+    text.append(f"💧 Влажность: {humidity}%")
+
+    text.append(f"💨 Ветер: {wind} км/ч")
+
+    text.append("")
+
+    text.append("Прогноз на ближайшие 3 часа:")
+
+    for i in range(3):
+
+        hour = hourly["time"][i][-5:]
+
+        temp = hourly["temperature_2m"][i]
+
+        rain = hourly["precipitation_probability"][i]
+
+        code = hourly["weather_code"][i]
+
+        text.append(
+            f"{hour} | "
+            f"{temp}°C | "
+            f"{weather_name(code)} | "
+            f"🌧 {rain}%"
+        )
+
+    return "\n".join(text)
 
 
 def format_weather():
-    data = collect_weather()
-    lines = ["🌦 Погода по городам Малайзии\n"]
 
-    for city, item in data.items():
-        if "error" in item:
-            lines.append(f"📍 {city}\nОшибка: {item['error']}\n")
-            continue
+    report = []
 
-        impact = "без явного влияния"
-        precipitation = item.get("daily_precipitation") or 0
-        if precipitation >= 10:
-            impact = "возможен рост спроса и задержки подачи"
-        elif precipitation >= 3:
-            impact = "возможен умеренный рост спроса"
+    report.append("🌦 Погода")
 
-        lines.append(
-            f"📍 {city}\n"
-            f"Сейчас: {item.get('temperature')}°C, {item.get('description')}\n"
-            f"Дождь сейчас: {item.get('rain')} мм\n"
-            f"Осадки за день: {item.get('daily_precipitation')} мм\n"
-            f"Ветер: {item.get('wind')} км/ч\n"
-            f"Влияние: {impact}\n"
-        )
+    report.append("━━━━━━━━━━━━━━━━━━")
 
-    return "\n".join(lines)
+    report.append("")
+
+    for city, data in CITIES.items():
+
+        report.append(city_weather(city, data))
+
+        report.append("")
+
+    return "\n".join(report)
