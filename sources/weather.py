@@ -12,10 +12,10 @@ MY_TIMEZONE = ZoneInfo("Asia/Kuala_Lumpur")
 
 
 WEATHER_CODES = {
-    0: "ясно",
+    0: "солнечно",
     1: "малооблачно",
     2: "переменная облачность",
-    3: "пасмурно",
+    3: "облачно без осадков",
     45: "туман",
     48: "сильный туман",
     51: "морось",
@@ -33,11 +33,38 @@ WEATHER_CODES = {
 }
 
 
+PRECIPITATION_CODES = {
+    51, 53, 55,
+    61, 63, 65,
+    80, 81, 82,
+    95, 96, 99,
+}
+
+
 def weather_name(code) -> str:
     try:
-        return WEATHER_CODES.get(int(code), "неизвестно")
+        return WEATHER_CODES.get(int(code), "погода неизвестна")
     except Exception:
-        return "неизвестно"
+        return "погода неизвестна"
+
+
+def is_precipitation(code) -> bool:
+    try:
+        return int(code) in PRECIPITATION_CODES
+    except Exception:
+        return False
+
+
+def format_condition(code, wind_speed=None) -> str:
+    name = weather_name(code)
+
+    if is_precipitation(code):
+        if wind_speed is not None and wind_speed >= 25:
+            return f"❗ {name} с сильным ветром"
+
+        return f"❗ {name}"
+
+    return name
 
 
 def now_myt() -> datetime:
@@ -51,7 +78,7 @@ def fetch_weather(city: str):
         "latitude": data["lat"],
         "longitude": data["lon"],
         "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
-        "hourly": "temperature_2m,weather_code,precipitation_probability",
+        "hourly": "temperature_2m,weather_code,wind_speed_10m",
         "forecast_days": 1,
         "timezone": "Asia/Kuala_Lumpur",
     }
@@ -92,18 +119,25 @@ def collect_weather_events() -> list[RadarEvent]:
             times = hourly.get("time", [])
             temps = hourly.get("temperature_2m", [])
             codes = hourly.get("weather_code", [])
-            rain = hourly.get("precipitation_probability", [])
+            winds = hourly.get("wind_speed_10m", [])
 
-            current_text = (
-                f"Сейчас: {current.get('temperature_2m')}°C, "
-                f"{weather_name(current.get('weather_code'))}, "
-                f"влажность {current.get('relative_humidity_2m')}%, "
-                f"ветер {current.get('wind_speed_10m')} км/ч."
-            )
+            current_code = current.get("weather_code")
+            current_temp = current.get("temperature_2m")
+            current_humidity = current.get("relative_humidity_2m")
+            current_wind = current.get("wind_speed_10m")
 
-            forecast_lines = []
+            summary_lines = [
+                "Сейчас:",
+                f"{current_temp}°C, {format_condition(current_code, current_wind)}",
+                f"Влажность: {current_humidity}%",
+                f"Ветер: {current_wind} км/ч",
+                "",
+                "Ближайшие 6 часов:",
+            ]
 
-            for h in [1, 2, 3]:
+            has_bad_weather = is_precipitation(current_code)
+
+            for h in range(1, 7):
                 target = now + timedelta(hours=h)
                 idx = find_hour_index(times, target)
 
@@ -113,27 +147,25 @@ def collect_weather_events() -> list[RadarEvent]:
                 time_value = times[idx][-5:]
                 temp = temps[idx] if idx < len(temps) else "—"
                 code = codes[idx] if idx < len(codes) else None
-                rain_prob = rain[idx] if idx < len(rain) else "—"
+                wind = winds[idx] if idx < len(winds) else None
 
-                forecast_lines.append(
-                    f"+{h} час ({time_value} MYT): "
-                    f"{temp}°C, {weather_name(code)}, дождь {rain_prob}%"
+                condition = format_condition(code, wind)
+
+                if is_precipitation(code):
+                    has_bad_weather = True
+
+                summary_lines.append(
+                    f"+{h} час ({time_value} MYT): {temp}°C, {condition}"
                 )
 
-            summary = current_text + "\n" + "\n".join(forecast_lines)
-
-            priority = 2
-            text_low = summary.lower()
-
-            if "гроза" in text_low or "сильный дождь" in text_low or "ливень" in text_low:
-                priority = 4
+            priority = 4 if has_bad_weather else 2
 
             events.append(
                 RadarEvent(
                     event_type="weather",
                     city=city,
                     title=f"Погода в {city}",
-                    summary=summary,
+                    summary="\n".join(summary_lines),
                     source="Open-Meteo",
                     priority=priority,
                 )
