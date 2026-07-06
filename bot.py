@@ -23,6 +23,8 @@ from reports.morning_brief import (
     build_action_center,
     build_country_news,
     build_city_news,
+    build_government,
+    build_roads,
     build_competitors,
     build_maxim,
     build_weather,
@@ -31,6 +33,8 @@ from reports.morning_brief import (
 
 from sources.weather import collect_weather_events
 from sources.currency import collect_currency_events
+from sources.government import collect_government_events
+from sources.roads import collect_all_roads
 
 
 logging.basicConfig(level=logging.INFO)
@@ -104,10 +108,12 @@ async def help_command(message: Message):
         "🌅 Morning Brief — полная утренняя сводка\n"
         "📰 Новости — новости Малайзии за сегодня\n"
         "📍 Города — новости по Miri, Bintulu, Labuan, Sibu, Seremban\n"
+        "🏛 Государство — APAD, JPJ, MOT, LPKP, PUSPAKOM\n"
+        "🛣 Дороги — аварии, перекрытия, floods, road closure по городам\n"
         "🚗 Конкуренты — Grab, inDrive, Bolt, AirAsia Ride, MyRide\n"
         "🚨 Maxim — упоминания Maxim e-hailing Malaysia\n"
         "🌦 Погода — текущая ситуация и прогноз\n"
-        "💰 Валюты — основные курсы",
+        "💰 Валюты — стоимость 1 MYR",
         reply_markup=main_keyboard(),
     )
 
@@ -130,40 +136,47 @@ async def action_center(message: Message):
 @dp.message(Command("news"))
 @dp.message(F.text == "📰 Новости")
 async def country_news(message: Message):
-    await message.answer(
-        "📰 Собираю новости Малайзии за сегодня...",
-        reply_markup=main_keyboard(),
-    )
+    await message.answer("📰 Собираю новости Малайзии за сегодня...", reply_markup=main_keyboard())
     events = collect_events_safe()
     await send_long(message, "\n".join(build_country_news(events)))
 
 
 @dp.message(F.text == "📍 Города")
 async def city_news(message: Message):
-    await message.answer(
-        "📍 Собираю новости городов за сегодня...",
-        reply_markup=main_keyboard(),
-    )
+    await message.answer("📍 Собираю новости городов за сегодня...", reply_markup=main_keyboard())
     events = collect_events_safe()
     await send_long(message, "\n".join(build_city_news(events)))
 
 
+@dp.message(F.text == "🏛 Государство")
+async def government(message: Message):
+    await message.answer("🏛 Проверяю APAD / JPJ / MOT / LPKP / PUSPAKOM...", reply_markup=main_keyboard())
+    events = collect_government_events()
+    await send_long(message, "\n".join(build_government(events)))
+
+
+@dp.message(F.text == "🛣 Дороги")
+async def roads(message: Message):
+    await message.answer("🛣 Проверяю дорожную ситуацию по городам...", reply_markup=main_keyboard())
+
+    events = []
+    data = collect_all_roads()
+    for items in data.values():
+        events.extend(items)
+
+    await send_long(message, "\n".join(build_roads(events)))
+
+
 @dp.message(F.text == "🚗 Конкуренты")
 async def competitors(message: Message):
-    await message.answer(
-        "🚗 Проверяю конкурентов за сегодня...",
-        reply_markup=main_keyboard(),
-    )
+    await message.answer("🚗 Проверяю конкурентов за сегодня...", reply_markup=main_keyboard())
     events = collect_events_safe()
     await send_long(message, "\n".join(build_competitors(events)))
 
 
 @dp.message(F.text == "🚨 Maxim")
 async def maxim(message: Message):
-    await message.answer(
-        "🚨 Проверяю Maxim e-hailing Malaysia...",
-        reply_markup=main_keyboard(),
-    )
+    await message.answer("🚨 Проверяю Maxim e-hailing Malaysia...", reply_markup=main_keyboard())
     events = collect_events_safe()
     await send_long(message, "\n".join(build_maxim(events)))
 
