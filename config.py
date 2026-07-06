@@ -79,11 +79,18 @@ NEWS_SOURCES = {
         "https://www.malaymail.com/feed/rss/malaysia",
         "https://www.nst.com.my/rss/news",
         "https://www.freemalaysiatoday.com/category/nation/feed/",
-        "https://www.bernama.com/en/rss.php"
+        "https://www.bernama.com/en/rss.php",
+        "https://www.malaysiakini.com/rss/en/news",
+        "https://www.malaysianow.com/feed",
+        "https://www.theedgemalaysia.com/rss",
+        "https://www.sinarharian.com.my/rssFeed/10",
+        "https://www.hmetro.com.my/utama.xml",
     ],
 
     "Borneo": [
-        "https://www.theborneopost.com/feed/"
+        "https://www.theborneopost.com/feed/",
+        "https://www.newsarawaktribune.com.my/feed/",
+        "https://www.utusanborneo.com.my/rss.xml",
     ]
 }
 
