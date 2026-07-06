@@ -169,6 +169,37 @@ async def main():
 
     bot = Bot(BOT_TOKEN)
 
+        scheduler = AsyncIOScheduler(timezone=REPORT_TIMEZONE)
+
+    async def morning_report_job():
+        if not TELEGRAM_CHAT_ID:
+            logging.warning("TELEGRAM_CHAT_ID is empty. Morning report skipped.")
+            return
+
+        events = collect_events_safe()
+        report_text = build_morning_brief(events)
+
+        for part in split_message(report_text):
+            await bot.send_message(
+                TELEGRAM_CHAT_ID,
+                part,
+                disable_web_page_preview=True,
+                parse_mode="HTML",
+            )
+
+    scheduler.add_job(
+        morning_report_job,
+        "cron",
+        hour=REPORT_HOUR,
+        minute=REPORT_MINUTE,
+    )
+
+    scheduler.start()
+
+    logging.info(
+        f"Morning report scheduled at {REPORT_HOUR:02d}:{REPORT_MINUTE:02d} {REPORT_TIMEZONE}"
+    )
+
     logging.info("Malaysia Radar 2.0 started")
     logging.info("Polling started")
 
