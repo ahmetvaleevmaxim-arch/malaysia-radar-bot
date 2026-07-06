@@ -5,7 +5,8 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from config import BOT_TOKEN
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from config import BOT_TOKEN, TELEGRAM_CHAT_ID, REPORT_HOUR, REPORT_MINUTE, REPORT_TIMEZONE
 from database import init_database
 
 from ui.keyboards import main_keyboard
