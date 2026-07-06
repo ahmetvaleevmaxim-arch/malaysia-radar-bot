@@ -22,7 +22,7 @@ def build_action_center(events: list[RadarEvent]) -> list[str]:
 
     lines = []
 
-    for event in important[:7]:
+    for event in important[:10]:
         lines.append(event_line(event))
 
     if not lines:
@@ -33,6 +33,7 @@ def build_action_center(events: list[RadarEvent]) -> list[str]:
 
 def build_country_news(events: list[RadarEvent]) -> list[str]:
     items = [event for event in events if event.event_type == "country_news"]
+
     return section(
         "📰 Новости Малайзии за сегодня",
         [event_line(event, i) for i, event in enumerate(items[:10], 1)]
@@ -97,6 +98,57 @@ def build_maxim(events: list[RadarEvent]) -> list[str]:
     return section("🚨 Maxim Monitor", lines)
 
 
+def build_government(events: list[RadarEvent]) -> list[str]:
+    items = [event for event in events if event.event_type == "government"]
+
+    if not items:
+        return section("🏛 Государство", ["🟢 Новостей APAD / JPJ / MOT / LPKP / PUSPAKOM за сегодня не найдено."])
+
+    lines = []
+
+    agencies = ["APAD", "JPJ", "MOT", "LPKP", "PUSPAKOM"]
+
+    for agency in agencies:
+        agency_events = [event for event in items if event.company == agency]
+
+        if not agency_events:
+            continue
+
+        lines.append(f"🏛 {agency}")
+
+        for i, event in enumerate(agency_events[:5], 1):
+            lines.append(event_line(event, i))
+
+        lines.append("")
+
+    return section("🏛 Государство", lines)
+
+
+def build_roads(events: list[RadarEvent]) -> list[str]:
+    lines = []
+
+    for city in CITIES:
+        city_events = [
+            event for event in events
+            if event.city == city and event.event_type == "transport"
+        ]
+
+        if not city_events:
+            continue
+
+        lines.append(f"🛣 {city}")
+
+        for i, event in enumerate(city_events[:5], 1):
+            lines.append(event_line(event, i))
+
+        lines.append("")
+
+    if not lines:
+        return section("🛣 Дороги", ["🟢 Важных дорожных новостей за сегодня не найдено."])
+
+    return section("🛣 Дороги", lines)
+
+
 def build_weather(events: list[RadarEvent]) -> list[str]:
     items = [event for event in events if event.event_type == "weather"]
 
@@ -129,6 +181,8 @@ def build_morning_brief(events: list[RadarEvent]) -> str:
     lines.extend(build_action_center(events))
     lines.extend(build_country_news(events))
     lines.extend(build_city_news(events))
+    lines.extend(build_government(events))
+    lines.extend(build_roads(events))
     lines.extend(build_competitors(events))
     lines.extend(build_maxim(events))
     lines.extend(build_weather(events))
