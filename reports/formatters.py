@@ -27,13 +27,12 @@ def event_line(event: RadarEvent, index: int | None = None) -> str:
 def event_block(event: RadarEvent) -> str:
     icon = priority_icon(event.priority)
     title = ru_title(event.title, limit=100)
-    summary = translate_to_ru(short_text(event.summary, limit=220))
 
     lines = [
         f"{icon} {title}",
     ]
 
-    if event.city:
+    if event.city and event.event_type != "weather":
         lines.append(f"Город: {event.city}")
 
     if event.company:
@@ -42,8 +41,8 @@ def event_block(event: RadarEvent) -> str:
     if event.category:
         lines.append(f"Категория: {event.category}")
 
-    if summary:
-        lines.append(summary)
+    if event.summary:
+        lines.append(event.summary)
 
     if event.url:
         lines.append(f"Ссылка: {click(event.url)}")
