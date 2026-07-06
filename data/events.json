@@ -1,0 +1,30 @@
+[
+  {
+    "date": "2026-08-31",
+    "city": "Malaysia",
+    "title": "Merdeka Day / National Day",
+    "type": "public holiday",
+    "importance": "high"
+  },
+  {
+    "date": "2026-09-16",
+    "city": "Malaysia",
+    "title": "Malaysia Day",
+    "type": "public holiday",
+    "importance": "high"
+  },
+  {
+    "date": "2026-12-25",
+    "city": "Malaysia",
+    "title": "Christmas Day",
+    "type": "public holiday",
+    "importance": "medium"
+  },
+  {
+    "date": "2027-01-01",
+    "city": "Malaysia",
+    "title": "New Year Day",
+    "type": "public holiday",
+    "importance": "medium"
+  }
+]
