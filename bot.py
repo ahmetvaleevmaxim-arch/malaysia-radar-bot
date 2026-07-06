@@ -6,7 +6,14 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from config import BOT_TOKEN, TELEGRAM_CHAT_ID, REPORT_HOUR, REPORT_MINUTE, REPORT_TIMEZONE
+
+from config import (
+    BOT_TOKEN,
+    TELEGRAM_CHAT_ID,
+    REPORT_HOUR,
+    REPORT_MINUTE,
+    REPORT_TIMEZONE,
+)
 from database import init_database
 
 from ui.keyboards import main_keyboard
@@ -56,10 +63,20 @@ async def send_long(message: Message, text: str):
         )
 
 
+async def send_long_to_chat(bot: Bot, chat_id: str, text: str):
+    for part in split_message(text):
+        await bot.send_message(
+            chat_id,
+            part,
+            disable_web_page_preview=True,
+            parse_mode="HTML",
+        )
+
+
 def collect_events_safe():
     try:
         return collect_all_events()
-    except Exception as e:
+    except Exception:
         logging.exception("Ошибка сбора данных")
         return []
 
@@ -111,28 +128,40 @@ async def action_center(message: Message):
 @dp.message(Command("news"))
 @dp.message(F.text == "📰 Новости")
 async def country_news(message: Message):
-    await message.answer("📰 Собираю новости Малайзии за сегодня...", reply_markup=main_keyboard())
+    await message.answer(
+        "📰 Собираю новости Малайзии за сегодня...",
+        reply_markup=main_keyboard(),
+    )
     events = collect_events_safe()
     await send_long(message, "\n".join(build_country_news(events)))
 
 
 @dp.message(F.text == "📍 Города")
 async def city_news(message: Message):
-    await message.answer("📍 Собираю новости городов за сегодня...", reply_markup=main_keyboard())
+    await message.answer(
+        "📍 Собираю новости городов за сегодня...",
+        reply_markup=main_keyboard(),
+    )
     events = collect_events_safe()
     await send_long(message, "\n".join(build_city_news(events)))
 
 
 @dp.message(F.text == "🚗 Конкуренты")
 async def competitors(message: Message):
-    await message.answer("🚗 Проверяю конкурентов за сегодня...", reply_markup=main_keyboard())
+    await message.answer(
+        "🚗 Проверяю конкурентов за сегодня...",
+        reply_markup=main_keyboard(),
+    )
     events = collect_events_safe()
     await send_long(message, "\n".join(build_competitors(events)))
 
 
 @dp.message(F.text == "🚨 Maxim")
 async def maxim(message: Message):
-    await message.answer("🚨 Проверяю Maxim e-hailing Malaysia...", reply_markup=main_keyboard())
+    await message.answer(
+        "🚨 Проверяю Maxim e-hailing Malaysia...",
+        reply_markup=main_keyboard(),
+    )
     events = collect_events_safe()
     await send_long(message, "\n".join(build_maxim(events)))
 
@@ -169,7 +198,7 @@ async def main():
 
     bot = Bot(BOT_TOKEN)
 
-        scheduler = AsyncIOScheduler(timezone=REPORT_TIMEZONE)
+    scheduler = AsyncIOScheduler(timezone=REPORT_TIMEZONE)
 
     async def morning_report_job():
         if not TELEGRAM_CHAT_ID:
@@ -179,13 +208,11 @@ async def main():
         events = collect_events_safe()
         report_text = build_morning_brief(events)
 
-        for part in split_message(report_text):
-            await bot.send_message(
-                TELEGRAM_CHAT_ID,
-                part,
-                disable_web_page_preview=True,
-                parse_mode="HTML",
-            )
+        await send_long_to_chat(
+            bot=bot,
+            chat_id=TELEGRAM_CHAT_ID,
+            text=report_text,
+        )
 
     scheduler.add_job(
         morning_report_job,
@@ -197,7 +224,10 @@ async def main():
     scheduler.start()
 
     logging.info(
-        f"Morning report scheduled at {REPORT_HOUR:02d}:{REPORT_MINUTE:02d} {REPORT_TIMEZONE}"
+        "Morning report scheduled at %02d:%02d %s",
+        REPORT_HOUR,
+        REPORT_MINUTE,
+        REPORT_TIMEZONE,
     )
 
     logging.info("Malaysia Radar 2.0 started")
