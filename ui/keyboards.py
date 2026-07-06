@@ -13,6 +13,10 @@ def main_keyboard():
                 KeyboardButton(text="📍 Города"),
             ],
             [
+                KeyboardButton(text="🏛 Государство"),
+                KeyboardButton(text="🛣 Дороги"),
+            ],
+            [
                 KeyboardButton(text="🚗 Конкуренты"),
                 KeyboardButton(text="🚨 Maxim"),
             ],
