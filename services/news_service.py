@@ -11,14 +11,18 @@ import requests
 from config import CITIES, NEWS_SOURCES
 
 
-MAX_ITEMS_COUNTRY = 8
-MAX_ITEMS_CITY = 5
+MAX_ITEMS_COUNTRY = 10
+MAX_ITEMS_CITY = 6
 
 MY_TIMEZONE = ZoneInfo("Asia/Kuala_Lumpur")
 
 
+def malaysia_now() -> datetime:
+    return datetime.now(MY_TIMEZONE)
+
+
 def malaysia_today():
-    return datetime.now(MY_TIMEZONE).date()
+    return malaysia_now().date()
 
 
 def clean_text(text: str) -> str:
@@ -58,7 +62,18 @@ def translate_to_ru(text: str) -> str:
         return text
 
 
-def shorten(text: str, limit: int = 220) -> str:
+def make_short_ru_title(title: str, limit: int = 95) -> str:
+    translated = translate_to_ru(clean_text(title))
+
+    translated = re.sub(r"\s+", " ", translated).strip()
+
+    if len(translated) <= limit:
+        return translated
+
+    return translated[:limit].rsplit(" ", 1)[0] + "..."
+
+
+def shorten(text: str, limit: int = 160) -> str:
     text = clean_text(text)
 
     if len(text) <= limit:
@@ -112,7 +127,7 @@ def google_news_rss(query: str) -> str:
     )
 
 
-def parse_feed(url: str, limit: int = 20, only_today: bool = True) -> list[dict]:
+def parse_feed(url: str, limit: int = 25, only_today: bool = True) -> list[dict]:
     items = []
 
     try:
@@ -125,9 +140,9 @@ def parse_feed(url: str, limit: int = 20, only_today: bool = True) -> list[dict]
             title = clean_text(entry.get("title", ""))
             summary = clean_text(entry.get("summary", ""))
             link = entry.get("link", "")
-            published = entry.get("published", "")
+            published = entry.get("published", "") or entry.get("updated", "")
 
-            if not title:
+            if not title or not link:
                 continue
 
             items.append({
@@ -145,19 +160,28 @@ def parse_feed(url: str, limit: int = 20, only_today: bool = True) -> list[dict]
 
 
 def deduplicate(items: list[dict]) -> list[dict]:
-    seen = set()
+    seen_titles = set()
+    seen_urls = set()
     result = []
 
     for item in items:
-        key = normalize_title(item.get("title", ""))
+        title_key = normalize_title(item.get("title", ""))
+        url_key = item.get("url", "")
 
-        if not key:
+        if not title_key:
             continue
 
-        if key in seen:
+        if title_key in seen_titles:
             continue
 
-        seen.add(key)
+        if url_key and url_key in seen_urls:
+            continue
+
+        seen_titles.add(title_key)
+
+        if url_key:
+            seen_urls.add(url_key)
+
         result.append(item)
 
     return result
@@ -168,10 +192,11 @@ def collect_country_news() -> list[dict]:
 
     for source_group in NEWS_SOURCES.values():
         for url in source_group:
-            items.extend(parse_feed(url, limit=20, only_today=True))
+            items.extend(parse_feed(url, limit=30, only_today=True))
 
-    items.extend(parse_feed(google_news_rss("Malaysia latest news when:1d"), limit=20, only_today=True))
-    items.extend(parse_feed(google_news_rss("Malaysia transport e-hailing taxi when:1d"), limit=20, only_today=True))
+    items.extend(parse_feed(google_news_rss("Malaysia latest news when:1d"), limit=30, only_today=True))
+    items.extend(parse_feed(google_news_rss("Malaysia government transport economy when:1d"), limit=30, only_today=True))
+    items.extend(parse_feed(google_news_rss("Malaysia e-hailing taxi public transport when:1d"), limit=30, only_today=True))
 
     return deduplicate(items)[:MAX_ITEMS_COUNTRY]
 
@@ -180,9 +205,9 @@ def collect_city_news(city: str, keywords: list[str]) -> list[dict]:
     items = []
 
     for keyword in keywords:
-        items.extend(parse_feed(google_news_rss(f"{keyword} Malaysia news when:1d"), limit=20, only_today=True))
-        items.extend(parse_feed(google_news_rss(f"{keyword} local event when:1d"), limit=20, only_today=True))
-        items.extend(parse_feed(google_news_rss(f"{keyword} traffic transport weather when:1d"), limit=20, only_today=True))
+        items.extend(parse_feed(google_news_rss(f"{keyword} Malaysia news when:1d"), limit=25, only_today=True))
+        items.extend(parse_feed(google_news_rss(f"{keyword} local event when:1d"), limit=25, only_today=True))
+        items.extend(parse_feed(google_news_rss(f"{keyword} traffic transport weather when:1d"), limit=25, only_today=True))
 
     return deduplicate(items)[:MAX_ITEMS_CITY]
 
