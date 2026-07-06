@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from modules.calendar_events import HOLIDAYS, LOCAL_EVENTS
+from services.calendar_data import HOLIDAYS, LOCAL_EVENTS
 
 
 LOOK_AHEAD_DAYS = 30
