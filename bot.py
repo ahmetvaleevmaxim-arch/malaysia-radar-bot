@@ -1,223 +1,190 @@
 import asyncio
-from typing import Callable
 
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import Message
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import BOT_TOKEN, TELEGRAM_CHAT_ID, REPORT_HOUR, REPORT_MINUTE
+from database import init_database
+
 from modules.weather import format_weather
 from modules.currency import format_currency
 from modules.news import format_news
 from modules.calendar_events import format_calendar
 from modules.report import build_daily_report
 
+from scheduler import (
+    collect_all_job,
+    collect_news_job,
+    collect_weather_job,
+    collect_currency_job,
+    collect_competitors_job,
+    collect_maxim_job,
+)
+
 
 dp = Dispatcher()
 
 
-def split_message(text: str, max_len: int = 3900) -> list[str]:
+def split_message(text: str, max_len: int = 3900):
     parts = []
+
     while len(text) > max_len:
         cut = text.rfind("\n", 0, max_len)
+
         if cut == -1:
             cut = max_len
+
         parts.append(text[:cut])
         text = text[cut:].strip()
+
     if text:
         parts.append(text)
+
     return parts
 
 
-async def send_long_message(message: Message, text: str):
+async def send_long(message: Message, text: str):
     for part in split_message(text):
         await message.answer(part, disable_web_page_preview=True)
 
 
-async def send_long_callback(callback: CallbackQuery, text: str):
-    if callback.message:
-        for part in split_message(text):
-            await callback.message.answer(part, disable_web_page_preview=True)
-
-
-def main_menu() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardBuilder()
-
-    kb.button(text="📰 Новости", callback_data="menu_news")
-    kb.button(text="🌦 Погода", callback_data="menu_weather")
-
-    kb.button(text="💰 Валюты", callback_data="menu_currency")
-    kb.button(text="📅 Праздники и события", callback_data="menu_calendar")
-
-    kb.button(text="📊 Полный отчет", callback_data="menu_report")
-    kb.button(text="ℹ️ Помощь", callback_data="menu_help")
-
-    kb.adjust(2)
-    return kb.as_markup()
-
-
-def back_menu() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardBuilder()
-    kb.button(text="⬅️ Назад в меню", callback_data="menu_main")
-    return kb.as_markup()
-
-
-def start_text(message: Message | None = None) -> str:
-    chat_id_line = ""
-    if message:
-        chat_id_line = f"\n\nВаш chat_id: `{message.chat.id}`"
-
-    return (
-        "🇲🇾 **Malaysia Radar**\n\n"
-        "Бот для ежедневного мониторинга Малайзии и ваших 5 городов:\n"
-        "Miri, Bintulu, Labuan, Sibu, Seremban.\n\n"
-        "Выберите раздел кнопками ниже."
-        f"{chat_id_line}"
-    )
+async def send_long_to_chat(bot: Bot, chat_id: str, text: str):
+    for part in split_message(text):
+        await bot.send_message(
+            chat_id,
+            part,
+            disable_web_page_preview=True
+        )
 
 
 @dp.message(Command("start"))
 async def start(message: Message):
     await message.answer(
-        start_text(message),
-        reply_markup=main_menu(),
-        parse_mode="Markdown"
+        "🇲🇾 Malaysia Radar Bot запущен.\n\n"
+        f"Ваш chat_id: {message.chat.id}\n\n"
+        "Команды:\n"
+        "/weather — погода\n"
+        "/currency — курсы валют\n"
+        "/news — новости\n"
+        "/calendar — календарь праздников и событий\n"
+        "/report — полный отчет\n"
+        "/collect — вручную собрать данные\n"
+        "/help — помощь"
     )
 
 
 @dp.message(Command("help"))
 async def help_command(message: Message):
     await message.answer(
-        "ℹ️ **Помощь**\n\n"
-        "Доступные команды:\n\n"
-        "/start — открыть главное меню\n"
-        "/weather — погода по городам\n"
+        "🇲🇾 Malaysia Radar\n\n"
+        "Бот собирает информацию по Малайзии и вашим городам:\n"
+        "Miri, Bintulu, Labuan, Sibu, Seremban.\n\n"
+        "Команды:\n"
+        "/weather — текущая погода и прогноз на 3 часа\n"
         "/currency — курсы валют\n"
-        "/news — новости\n"
+        "/news — новости страны, городов, конкурентов и Maxim\n"
         "/calendar — праздники и события\n"
-        "/report — полный отчет\n\n"
-        "Основной режим работы — через кнопки.",
-        reply_markup=main_menu(),
-        parse_mode="Markdown"
+        "/report — полный ежедневный отчет\n"
+        "/collect — вручную обновить данные"
     )
 
 
 @dp.message(Command("weather"))
 async def weather(message: Message):
     await message.answer("🌦 Собираю погоду...")
-    await send_long_message(message, format_weather())
+    await send_long(message, format_weather())
 
 
 @dp.message(Command("currency"))
 async def currency(message: Message):
     await message.answer("💰 Собираю курсы валют...")
-    await send_long_message(message, format_currency())
+    await send_long(message, format_currency())
 
 
 @dp.message(Command("news"))
 async def news(message: Message):
     await message.answer("📰 Собираю новости...")
-    await send_long_message(message, format_news())
+    await send_long(message, format_news())
 
 
 @dp.message(Command("calendar"))
 async def calendar(message: Message):
-    await send_long_message(message, format_calendar())
+    await send_long(message, format_calendar())
 
 
 @dp.message(Command("report"))
 async def report(message: Message):
     await message.answer("📊 Собираю полный отчет...")
-    await send_long_message(message, build_daily_report())
+    await send_long(message, build_daily_report())
 
 
-@dp.callback_query(F.data == "menu_main")
-async def callback_main(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text(
-        "🇲🇾 **Malaysia Radar**\n\nВыберите нужный раздел.",
-        reply_markup=main_menu(),
-        parse_mode="Markdown"
-    )
+@dp.message(Command("collect"))
+async def collect(message: Message):
+    await message.answer("🔄 Начинаю ручной сбор данных...")
 
+    try:
+        important_mentions = collect_all_job()
 
-@dp.callback_query(F.data == "menu_help")
-async def callback_help(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text(
-        "ℹ️ **Помощь**\n\n"
-        "Бот собирает информацию по Малайзии и вашим городам.\n\n"
-        "Разделы:\n"
-        "📰 Новости — страна и города\n"
-        "🌦 Погода — текущая и прогноз\n"
-        "💰 Валюты — основные курсы\n"
-        "📅 Праздники и события — ближайшие даты\n"
-        "📊 Полный отчет — вся сводка сразу\n\n"
-        "Все данные выводятся на русском.",
-        reply_markup=back_menu(),
-        parse_mode="Markdown"
-    )
+        text = "✅ Сбор данных завершен."
 
+        if important_mentions:
+            text += "\n\n🚨 Найдены важные упоминания Maxim:\n\n"
 
-async def handle_section(
-    callback: CallbackQuery,
-    loading_text: str,
-    formatter: Callable[[], str],
-):
-    await callback.answer()
-    if callback.message:
-        await callback.message.edit_text(loading_text)
-        result = formatter()
-        await callback.message.answer(
-            result,
-            reply_markup=back_menu(),
-            disable_web_page_preview=True
-        )
+            for item in important_mentions:
+                text += (
+                    f"• {item.get('title', '')}\n"
+                    f"Город: {item.get('city', 'Malaysia')}\n"
+                    f"Категория: {item.get('category', 'упоминание')}\n"
+                    f"Важность: {item.get('priority', 0)}/5\n"
+                    f"Ссылка: {item.get('url', '')}\n\n"
+                )
 
+        await send_long(message, text)
 
-@dp.callback_query(F.data == "menu_news")
-async def callback_news(callback: CallbackQuery):
-    await handle_section(callback, "📰 Собираю новости...", format_news)
-
-
-@dp.callback_query(F.data == "menu_weather")
-async def callback_weather(callback: CallbackQuery):
-    await handle_section(callback, "🌦 Собираю погоду...", format_weather)
-
-
-@dp.callback_query(F.data == "menu_currency")
-async def callback_currency(callback: CallbackQuery):
-    await handle_section(callback, "💰 Собираю курсы валют...", format_currency)
-
-
-@dp.callback_query(F.data == "menu_calendar")
-async def callback_calendar(callback: CallbackQuery):
-    await handle_section(callback, "📅 Собираю праздники и события...", format_calendar)
-
-
-@dp.callback_query(F.data == "menu_report")
-async def callback_report(callback: CallbackQuery):
-    await handle_section(callback, "📊 Собираю полный отчет...", build_daily_report)
+    except Exception as e:
+        await message.answer(f"❌ Ошибка при сборе данных:\n{e}")
 
 
 async def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN is empty. Add it to .env file.")
 
+    init_database()
+
     bot = Bot(BOT_TOKEN)
+
     scheduler = AsyncIOScheduler(timezone="Asia/Kuala_Lumpur")
 
     async def daily_report_job():
         if TELEGRAM_CHAT_ID:
             report_text = build_daily_report()
-            for part in split_message(report_text):
-                await bot.send_message(
-                    TELEGRAM_CHAT_ID,
-                    part,
-                    disable_web_page_preview=True
+            await send_long_to_chat(bot, TELEGRAM_CHAT_ID, report_text)
+
+    async def collect_all_scheduler_job():
+        important_mentions = collect_all_job()
+
+        if TELEGRAM_CHAT_ID and important_mentions:
+            text = "🚨 Важные упоминания Maxim\n\n"
+
+            for item in important_mentions:
+                text += (
+                    f"• {item.get('title', '')}\n"
+                    f"Город: {item.get('city', 'Malaysia')}\n"
+                    f"Категория: {item.get('category', 'упоминание')}\n"
+                    f"Важность: {item.get('priority', 0)}/5\n"
+                    f"Ссылка: {item.get('url', '')}\n\n"
                 )
+
+            await send_long_to_chat(bot, TELEGRAM_CHAT_ID, text)
+
+    scheduler.add_job(collect_news_job, "interval", minutes=30)
+    scheduler.add_job(collect_weather_job, "interval", minutes=30)
+    scheduler.add_job(collect_currency_job, "interval", hours=12)
+    scheduler.add_job(collect_competitors_job, "interval", hours=1)
+    scheduler.add_job(collect_all_scheduler_job, "interval", minutes=30)
+    scheduler.add_job(collect_maxim_job, "interval", minutes=15)
 
     if TELEGRAM_CHAT_ID:
         scheduler.add_job(
@@ -226,7 +193,8 @@ async def main():
             hour=REPORT_HOUR,
             minute=REPORT_MINUTE
         )
-        scheduler.start()
+
+    scheduler.start()
 
     print("Malaysia Radar Bot started")
     await dp.start_polling(bot)
