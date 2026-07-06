@@ -59,7 +59,8 @@ async def send_long(message: Message, text: str):
         await message.answer(
             part,
             disable_web_page_preview=True,
-            reply_markup=main_keyboard()
+            reply_markup=main_keyboard(),
+            parse_mode="HTML"
         )
 
 
