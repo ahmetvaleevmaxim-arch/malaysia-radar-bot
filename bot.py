@@ -3,20 +3,23 @@ import logging
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message
 
 from config import BOT_TOKEN
 from database import init_database
 
-from modules.weather import format_weather
-from modules.currency import format_currency
-from modules.news import (
-    format_news,
-    format_competitor_news,
-    format_maxim_mentions,
+from ui.keyboards import main_keyboard
+from reports.collector import collect_all_events
+from reports.morning_brief import (
+    build_morning_brief,
+    build_action_center,
+    build_country_news,
+    build_city_news,
+    build_competitors,
+    build_maxim,
+    build_weather,
+    build_currency,
 )
-from modules.calendar_events import format_calendar
-from modules.report import build_daily_report
 
 
 logging.basicConfig(level=logging.INFO)
@@ -24,24 +27,12 @@ logging.basicConfig(level=logging.INFO)
 dp = Dispatcher()
 
 
-def main_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="📰 Новости"), KeyboardButton(text="🌦 Погода")],
-            [KeyboardButton(text="💰 Валюты"), KeyboardButton(text="🚗 Конкуренты")],
-            [KeyboardButton(text="🚨 Maxim"), KeyboardButton(text="📅 События")],
-            [KeyboardButton(text="📊 Полный отчет"), KeyboardButton(text="ℹ️ Помощь")],
-        ],
-        resize_keyboard=True,
-        input_field_placeholder="Выберите раздел"
-    )
-
-
 def split_message(text: str, max_len: int = 3900):
     parts = []
 
     while len(text) > max_len:
         cut = text.rfind("\n", 0, max_len)
+
         if cut == -1:
             cut = max_len
 
@@ -60,17 +51,26 @@ async def send_long(message: Message, text: str):
             part,
             disable_web_page_preview=True,
             reply_markup=main_keyboard(),
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
+
+
+def collect_events_safe():
+    try:
+        return collect_all_events()
+    except Exception as e:
+        logging.exception("Ошибка сбора данных")
+        return []
 
 
 @dp.message(Command("start"))
 async def start(message: Message):
     await message.answer(
-        "🇲🇾 Malaysia Radar Bot запущен.\n\n"
-        "Теперь можно пользоваться кнопками ниже.\n\n"
+        "🇲🇾 Malaysia Radar 2.0\n\n"
+        "Операционная сводка для развития Малайзии.\n\n"
+        "Используйте кнопки ниже.\n\n"
         f"Ваш chat_id: {message.chat.id}",
-        reply_markup=main_keyboard()
+        reply_markup=main_keyboard(),
     )
 
 
@@ -78,73 +78,85 @@ async def start(message: Message):
 @dp.message(F.text == "ℹ️ Помощь")
 async def help_command(message: Message):
     await message.answer(
-        "🇲🇾 Malaysia Radar\n\n"
-        "Бот собирает информацию по Малайзии и городам:\n"
-        "Miri, Bintulu, Labuan, Sibu, Seremban.\n\n"
+        "🇲🇾 Malaysia Radar 2.0\n\n"
         "Разделы:\n"
-        "📰 Новости — только за текущий день\n"
-        "🌦 Погода — сейчас и прогноз на 3 часа\n"
-        "💰 Валюты\n"
-        "🚗 Конкуренты\n"
+        "🎯 Action Center — что требует внимания\n"
+        "🌅 Morning Brief — полная утренняя сводка\n"
+        "📰 Новости — новости Малайзии за сегодня\n"
+        "📍 Города — новости по Miri, Bintulu, Labuan, Sibu, Seremban\n"
+        "🚗 Конкуренты — Grab, inDrive, Bolt, AirAsia Ride, MyRide\n"
         "🚨 Maxim — упоминания Maxim e-hailing Malaysia\n"
-        "📅 События\n"
-        "📊 Полный отчет",
-        reply_markup=main_keyboard()
+        "🌦 Погода — текущая ситуация и прогноз\n"
+        "💰 Валюты — основные курсы",
+        reply_markup=main_keyboard(),
     )
+
+
+@dp.message(Command("report"))
+@dp.message(F.text == "🌅 Morning Brief")
+async def morning_brief(message: Message):
+    await message.answer("🌅 Собираю Morning Brief...", reply_markup=main_keyboard())
+    events = collect_events_safe()
+    await send_long(message, build_morning_brief(events))
+
+
+@dp.message(F.text == "🎯 Action Center")
+async def action_center(message: Message):
+    await message.answer("🎯 Проверяю важные события...", reply_markup=main_keyboard())
+    events = collect_events_safe()
+    await send_long(message, "\n".join(build_action_center(events)))
+
+
+@dp.message(Command("news"))
+@dp.message(F.text == "📰 Новости")
+async def country_news(message: Message):
+    await message.answer("📰 Собираю новости Малайзии за сегодня...", reply_markup=main_keyboard())
+    events = collect_events_safe()
+    await send_long(message, "\n".join(build_country_news(events)))
+
+
+@dp.message(F.text == "📍 Города")
+async def city_news(message: Message):
+    await message.answer("📍 Собираю новости городов за сегодня...", reply_markup=main_keyboard())
+    events = collect_events_safe()
+    await send_long(message, "\n".join(build_city_news(events)))
+
+
+@dp.message(F.text == "🚗 Конкуренты")
+async def competitors(message: Message):
+    await message.answer("🚗 Проверяю конкурентов за сегодня...", reply_markup=main_keyboard())
+    events = collect_events_safe()
+    await send_long(message, "\n".join(build_competitors(events)))
+
+
+@dp.message(F.text == "🚨 Maxim")
+async def maxim(message: Message):
+    await message.answer("🚨 Проверяю Maxim e-hailing Malaysia...", reply_markup=main_keyboard())
+    events = collect_events_safe()
+    await send_long(message, "\n".join(build_maxim(events)))
 
 
 @dp.message(Command("weather"))
 @dp.message(F.text == "🌦 Погода")
 async def weather(message: Message):
     await message.answer("🌦 Собираю погоду...", reply_markup=main_keyboard())
-    await send_long(message, format_weather())
+    events = collect_events_safe()
+    await send_long(message, "\n".join(build_weather(events)))
 
 
 @dp.message(Command("currency"))
 @dp.message(F.text == "💰 Валюты")
 async def currency(message: Message):
-    await message.answer("💰 Собираю курсы валют...", reply_markup=main_keyboard())
-    await send_long(message, format_currency())
-
-
-@dp.message(Command("news"))
-@dp.message(F.text == "📰 Новости")
-async def news(message: Message):
-    await message.answer("📰 Собираю новости за сегодня...", reply_markup=main_keyboard())
-    await send_long(message, format_news())
-
-
-@dp.message(Command("calendar"))
-@dp.message(F.text == "📅 События")
-async def calendar(message: Message):
-    await message.answer("📅 Собираю праздники и мероприятия...", reply_markup=main_keyboard())
-    await send_long(message, format_calendar())
-
-
-@dp.message(Command("report"))
-@dp.message(F.text == "📊 Полный отчет")
-async def report(message: Message):
-    await message.answer("📊 Собираю полный отчет...", reply_markup=main_keyboard())
-    await send_long(message, build_daily_report())
-
-
-@dp.message(F.text == "🚗 Конкуренты")
-async def competitors(message: Message):
-    await message.answer("🚗 Собираю новости конкурентов...", reply_markup=main_keyboard())
-    await send_long(message, format_competitor_news())
-
-
-@dp.message(F.text == "🚨 Maxim")
-async def maxim(message: Message):
-    await message.answer("🚨 Проверяю упоминания Maxim e-hailing Malaysia...", reply_markup=main_keyboard())
-    await send_long(message, format_maxim_mentions())
+    await message.answer("💰 Собираю валюты...", reply_markup=main_keyboard())
+    events = collect_events_safe()
+    await send_long(message, "\n".join(build_currency(events)))
 
 
 @dp.message()
 async def unknown(message: Message):
     await message.answer(
         "Выберите нужный раздел кнопками ниже.",
-        reply_markup=main_keyboard()
+        reply_markup=main_keyboard(),
     )
 
 
@@ -156,12 +168,12 @@ async def main():
 
     bot = Bot(BOT_TOKEN)
 
-    logging.info("Malaysia Radar Bot started")
+    logging.info("Malaysia Radar 2.0 started")
     logging.info("Polling started")
 
     await dp.start_polling(
         bot,
-        handle_signals=False
+        handle_signals=False,
     )
 
 
