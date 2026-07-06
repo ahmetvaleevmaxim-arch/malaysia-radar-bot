@@ -79,7 +79,7 @@ def fetch_weather(city: str):
         "longitude": data["lon"],
         "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
         "hourly": "temperature_2m,weather_code,wind_speed_10m",
-        "forecast_days": 1,
+        "forecast_days": 2,
         "timezone": "Asia/Kuala_Lumpur",
     }
 
