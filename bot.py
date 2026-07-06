@@ -3,9 +3,8 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from config import BOT_TOKEN, TELEGRAM_CHAT_ID, REPORT_HOUR, REPORT_MINUTE
+from config import BOT_TOKEN
 from database import init_database
 
 from modules.weather import format_weather
@@ -13,15 +12,6 @@ from modules.currency import format_currency
 from modules.news import format_news
 from modules.calendar_events import format_calendar
 from modules.report import build_daily_report
-
-from scheduler import (
-    collect_all_job,
-    collect_news_job,
-    collect_weather_job,
-    collect_currency_job,
-    collect_competitors_job,
-    collect_maxim_job,
-)
 
 
 dp = Dispatcher()
@@ -47,13 +37,7 @@ def split_message(text: str, max_len: int = 3900):
 
 async def send_long(message: Message, text: str):
     for part in split_message(text):
-        await message.answer(part, disable_web_page_preview=True)
-
-
-async def send_long_to_chat(bot: Bot, chat_id: str, text: str):
-    for part in split_message(text):
-        await bot.send_message(
-            chat_id,
+        await message.answer(
             part,
             disable_web_page_preview=True
         )
@@ -65,12 +49,12 @@ async def start(message: Message):
         "🇲🇾 Malaysia Radar Bot запущен.\n\n"
         f"Ваш chat_id: {message.chat.id}\n\n"
         "Команды:\n"
-        "/weather — погода\n"
+        "/weather — погода по городам\n"
         "/currency — курсы валют\n"
         "/news — новости\n"
-        "/calendar — календарь праздников и событий\n"
+        "/calendar — праздники и события\n"
         "/report — полный отчет\n"
-        "/collect — вручную собрать данные\n"
+        "/collect — ручная проверка системы\n"
         "/help — помощь"
     )
 
@@ -79,15 +63,21 @@ async def start(message: Message):
 async def help_command(message: Message):
     await message.answer(
         "🇲🇾 Malaysia Radar\n\n"
-        "Бот собирает информацию по Малайзии и вашим городам:\n"
+        "Бот собирает информацию по Малайзии и городам:\n"
         "Miri, Bintulu, Labuan, Sibu, Seremban.\n\n"
-        "Команды:\n"
-        "/weather — текущая погода и прогноз на 3 часа\n"
-        "/currency — курсы валют\n"
-        "/news — новости страны, городов, конкурентов и Maxim\n"
-        "/calendar — праздники и события\n"
-        "/report — полный ежедневный отчет\n"
-        "/collect — вручную обновить данные"
+        "Разделы:\n"
+        "📰 Новости страны и городов\n"
+        "🌦 Погода: текущая и прогноз на 3 часа\n"
+        "💰 Валюты\n"
+        "🚗 Конкуренты\n"
+        "🚨 Упоминания Maxim\n"
+        "📅 Праздники и мероприятия\n\n"
+        "Основные команды:\n"
+        "/weather\n"
+        "/currency\n"
+        "/news\n"
+        "/calendar\n"
+        "/report"
     )
 
 
@@ -111,6 +101,7 @@ async def news(message: Message):
 
 @dp.message(Command("calendar"))
 async def calendar(message: Message):
+    await message.answer("📅 Собираю праздники и мероприятия...")
     await send_long(message, format_calendar())
 
 
@@ -122,29 +113,12 @@ async def report(message: Message):
 
 @dp.message(Command("collect"))
 async def collect(message: Message):
-    await message.answer("🔄 Начинаю ручной сбор данных...")
-
-    try:
-        important_mentions = collect_all_job()
-
-        text = "✅ Сбор данных завершен."
-
-        if important_mentions:
-            text += "\n\n🚨 Найдены важные упоминания Maxim:\n\n"
-
-            for item in important_mentions:
-                text += (
-                    f"• {item.get('title', '')}\n"
-                    f"Город: {item.get('city', 'Malaysia')}\n"
-                    f"Категория: {item.get('category', 'упоминание')}\n"
-                    f"Важность: {item.get('priority', 0)}/5\n"
-                    f"Ссылка: {item.get('url', '')}\n\n"
-                )
-
-        await send_long(message, text)
-
-    except Exception as e:
-        await message.answer(f"❌ Ошибка при сборе данных:\n{e}")
+    await message.answer(
+        "✅ Бот работает.\n\n"
+        "Telegram подключен.\n"
+        "Команды обрабатываются.\n"
+        "Следующий этап — вернуть автоматический сбор данных и уведомления."
+    )
 
 
 async def main():
@@ -155,49 +129,13 @@ async def main():
 
     bot = Bot(BOT_TOKEN)
 
-    scheduler = AsyncIOScheduler(timezone="Asia/Kuala_Lumpur")
-
-    async def daily_report_job():
-        if TELEGRAM_CHAT_ID:
-            report_text = build_daily_report()
-            await send_long_to_chat(bot, TELEGRAM_CHAT_ID, report_text)
-
-    async def collect_all_scheduler_job():
-        important_mentions = collect_all_job()
-
-        if TELEGRAM_CHAT_ID and important_mentions:
-            text = "🚨 Важные упоминания Maxim\n\n"
-
-            for item in important_mentions:
-                text += (
-                    f"• {item.get('title', '')}\n"
-                    f"Город: {item.get('city', 'Malaysia')}\n"
-                    f"Категория: {item.get('category', 'упоминание')}\n"
-                    f"Важность: {item.get('priority', 0)}/5\n"
-                    f"Ссылка: {item.get('url', '')}\n\n"
-                )
-
-            await send_long_to_chat(bot, TELEGRAM_CHAT_ID, text)
-
-    scheduler.add_job(collect_news_job, "interval", minutes=30)
-    scheduler.add_job(collect_weather_job, "interval", minutes=30)
-    scheduler.add_job(collect_currency_job, "interval", hours=12)
-    scheduler.add_job(collect_competitors_job, "interval", hours=1)
-    scheduler.add_job(collect_all_scheduler_job, "interval", minutes=30)
-    scheduler.add_job(collect_maxim_job, "interval", minutes=15)
-
-    if TELEGRAM_CHAT_ID:
-        scheduler.add_job(
-            daily_report_job,
-            "cron",
-            hour=REPORT_HOUR,
-            minute=REPORT_MINUTE
-        )
-
-    scheduler.start()
-
     print("Malaysia Radar Bot started")
-    await dp.start_polling(bot)
+    print("Polling started")
+
+    await dp.start_polling(
+        bot,
+        handle_signals=False
+    )
 
 
 if __name__ == "__main__":
