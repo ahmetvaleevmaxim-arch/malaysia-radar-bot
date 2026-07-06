@@ -4,7 +4,6 @@ import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
 from aiogram.types import Message
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import (
@@ -17,6 +16,7 @@ from config import (
 from database import init_database
 
 from ui.keyboards import main_keyboard
+
 from reports.collector import collect_all_events
 from reports.morning_brief import (
     build_morning_brief,
@@ -29,6 +29,9 @@ from reports.morning_brief import (
     build_currency,
 )
 
+from sources.weather import collect_weather_events
+from sources.currency import collect_currency_events
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -40,7 +43,6 @@ def split_message(text: str, max_len: int = 3900):
 
     while len(text) > max_len:
         cut = text.rfind("\n", 0, max_len)
-
         if cut == -1:
             cut = max_len
 
@@ -170,7 +172,7 @@ async def maxim(message: Message):
 @dp.message(F.text == "🌦 Погода")
 async def weather(message: Message):
     await message.answer("🌦 Собираю погоду...", reply_markup=main_keyboard())
-    events = collect_events_safe()
+    events = collect_weather_events()
     await send_long(message, "\n".join(build_weather(events)))
 
 
@@ -178,7 +180,7 @@ async def weather(message: Message):
 @dp.message(F.text == "💰 Валюты")
 async def currency(message: Message):
     await message.answer("💰 Собираю валюты...", reply_markup=main_keyboard())
-    events = collect_events_safe()
+    events = collect_currency_events()
     await send_long(message, "\n".join(build_currency(events)))
 
 
