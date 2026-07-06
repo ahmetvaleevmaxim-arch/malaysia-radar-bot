@@ -1,14 +1,22 @@
-#!/usr/bin/env bash
-set -e
+#!/bin/bash
+
+echo "======================================="
+echo "🚀 Deploy Malaysia Radar"
+echo "======================================="
 
 cd "$(dirname "$0")"
 
-if [ ! -d "venv" ]; then
-  python3 -m venv venv
-fi
+echo "📥 Получение обновлений..."
+git pull
 
-./venv/bin/python -m ensurepip --upgrade || true
-./venv/bin/python -m pip install --upgrade pip
-./venv/bin/python -m pip install -r requirements.txt
+echo "📦 Обновление зависимостей..."
+source venv/bin/activate
+pip install -r requirements.txt
 
-echo "Done. Now copy .env.example to .env and add BOT_TOKEN."
+echo "🗄 Обновление базы..."
+python3 database.py
+
+echo "✅ Deploy завершен."
+echo ""
+echo "Для запуска выполните:"
+echo "./run.sh"
