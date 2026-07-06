@@ -1,33 +1,66 @@
 import requests
 
 
-def collect_currency():
-    # Free public endpoint, no API key.
-    url = "https://open.er-api.com/v6/latest/MYR"
-    response = requests.get(url, timeout=20)
-    response.raise_for_status()
-    data = response.json()
+API = "https://open.er-api.com/v6/latest/MYR"
 
-    rates = data.get("rates", {})
-    return {
-        "MYR_USD": rates.get("USD"),
-        "MYR_RUB": rates.get("RUB"),
-        "MYR_EUR": rates.get("EUR"),
-        "MYR_SGD": rates.get("SGD"),
-        "updated": data.get("time_last_update_utc"),
-    }
+
+def get_rates():
+
+    try:
+
+        response = requests.get(API, timeout=15)
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        rates = data["rates"]
+
+        return {
+
+            "USD": round(1 / rates["USD"], 4),
+
+            "EUR": round(1 / rates["EUR"], 4),
+
+            "RUB": round(1 / rates["RUB"], 4),
+
+            "CNY": round(1 / rates["CNY"], 4),
+
+        }
+
+    except Exception:
+
+        return None
 
 
 def format_currency():
-    try:
-        data = collect_currency()
-        return (
-            "💱 Курсы валют от MYR\n\n"
-            f"1 MYR = {data.get('MYR_USD')} USD\n"
-            f"1 MYR = {data.get('MYR_RUB')} RUB\n"
-            f"1 MYR = {data.get('MYR_EUR')} EUR\n"
-            f"1 MYR = {data.get('MYR_SGD')} SGD\n\n"
-            f"Обновлено: {data.get('updated')}"
-        )
-    except Exception as exc:
-        return f"💱 Курсы валют\n\nОшибка получения данных: {exc}"
+
+    rates = get_rates()
+
+    report = []
+
+    report.append("💰 Курсы валют")
+
+    report.append("━━━━━━━━━━━━━━━━━━")
+
+    report.append("")
+
+    if rates is None:
+
+        report.append("Не удалось получить курсы валют.")
+
+        return "\n".join(report)
+
+    report.append(f"🇺🇸 USD → MYR : {rates['USD']}")
+
+    report.append(f"🇪🇺 EUR → MYR : {rates['EUR']}")
+
+    report.append(f"🇷🇺 RUB → MYR : {rates['RUB']}")
+
+    report.append(f"🇨🇳 CNY → MYR : {rates['CNY']}")
+
+    report.append("")
+
+    report.append("Источник: ExchangeRate API")
+
+    return "\n".join(report)
