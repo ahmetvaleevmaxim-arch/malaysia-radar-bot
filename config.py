@@ -16,6 +16,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
 REPORT_HOUR = int(os.getenv("REPORT_HOUR", "8"))
 REPORT_MINUTE = int(os.getenv("REPORT_MINUTE", "0"))
+REPORT_TIMEZONE = os.getenv("REPORT_TIMEZONE", "Europe/Moscow")
 
 # ==========================================
 # Malaysia Cities
